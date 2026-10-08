@@ -1,0 +1,71 @@
+:root {
+  /* Brand Palette - Academic Enterprise */
+  --color-primary: #1e40af;          /* Rich Indigo-Blue */
+  --color-primary-hover: #1e3a8a;
+  --color-primary-light: rgba(30, 64, 175, 0.10);   /* tinted glass (active nav, hovers) */
+  --color-accent: #0ea5e9;           /* Sky Blue accent */
+  --color-accent-hover: #0284c7;
+
+  --gradient-primary: linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%);
+  --gradient-surface: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%);
+
+  /* Auth screens: soft vivid backdrop so the glass card has something to blur */
+  --gradient-hero:
+    radial-gradient(38rem 30rem at 12% 14%, rgba(255, 255, 255, 0.55), transparent 62%),
+    radial-gradient(36rem 30rem at 88% 18%, rgba(129, 140, 248, 0.85), transparent 62%),
+    radial-gradient(40rem 32rem at 72% 92%, rgba(34, 211, 238, 0.75), transparent 62%),
+    radial-gradient(34rem 28rem at 6% 88%, rgba(167, 139, 250, 0.70), transparent 62%),
+    linear-gradient(135deg, #60a5fa 0%, #38bdf8 50%, #a5b4fc 100%);
+
+  /* Page backdrop (fixed layer, see globals.css) */
+  --bg-mesh:
+    radial-gradient(52rem 38rem at 6% 4%, rgba(56, 189, 248, 0.55), transparent 62%),
+    radial-gradient(46rem 36rem at 94% 10%, rgba(129, 140, 248, 0.45), transparent 62%),
+    radial-gradient(50rem 40rem at 84% 98%, rgba(14, 165, 233, 0.40), transparent 62%),
+    radial-gradient(42rem 34rem at 4% 94%, rgba(167, 139, 250, 0.38), transparent 62%);
+  --bg-base: #dbe8fb;
+
+  /* Glass surfaces (translucent on purpose, blur is applied in globals.css) */
+  --glass-blur: 16px;
+  --color-bg-main: transparent;
+  --color-bg-surface: rgba(255, 255, 255, 0.58);
+  --color-bg-muted: rgba(255, 255, 255, 0.40);
+  --color-border: rgba(71, 85, 105, 0.16);
+  --color-border-subtle: rgba(71, 85, 105, 0.30);
+
+  /* Text (slightly darker muted tone so it stays readable on glass) */
+  --color-text-main: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-light: #64748b;
+  --color-text-inverse: #ffffff;
+
+  /* Status Colors: tinted glass chips */
+  --status-under-review-bg: rgba(14, 165, 233, 0.16);
+  --status-under-review-text: #0369a1;
+  --status-in-progress-bg: rgba(124, 58, 237, 0.14);
+  --status-in-progress-text: #6d28d9;
+  --status-escalated-bg: rgba(249, 115, 22, 0.16);
+  --status-escalated-text: #c2410c;
+  --status-resolved-bg: rgba(34, 197, 94, 0.16);
+  --status-resolved-text: #15803d;
+  --status-not-solved-bg: rgba(239, 68, 68, 0.14);
+  --status-not-solved-text: #b91c1c;
+  --status-closed-bg: rgba(100, 116, 139, 0.16);
+  --status-closed-text: #475569;
+
+  /* Elevation: soft blue drop shadow + 1px top highlight = glass edge */
+  --shadow-sm: 0 4px 24px rgba(30, 64, 175, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.70);
+  --shadow-md: 0 8px 32px rgba(30, 64, 175, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.70);
+  --shadow-lg: 0 20px 48px -12px rgba(30, 64, 175, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.70);
+  --shadow-hover: 0 14px 28px -6px rgba(30, 64, 175, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+
+  /* Spacing & Radii (a bit rounder suits glass) */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 9999px;
+
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --transition-fast: 0.18s ease;
+  --transition-normal: 0.3s ease;
+}

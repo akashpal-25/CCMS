@@ -1,0 +1,95 @@
+.hide-desktop { display: none; }
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.32);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  z-index: 150;
+}
+@media (max-width: 1024px) {
+  .page-body { padding: 1.25rem; }
+}
+@media (max-width: 768px) {
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: var(--shadow-lg);
+    /* Drawer sits on a dark overlay: keep it frosted but readable.
+       !important because the sidebar sets its background inline. */
+    background-color: rgba(246, 249, 255, 0.88) !important;
+  }
+  .app-sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+  .hide-desktop { display: inline-flex; }
+  .page-body { padding: 1rem 0.75rem; }
+}
+
+/* ---- Phone: tighter spacing and smaller type (desktop sizes are too roomy) ----
+   Most sizes are set inline in the components, so these rules match the inline
+   values and use !important. They only apply on screens up to 640px wide. */
+@media (max-width: 640px) {
+  .page-body { padding: 0.75rem 0.625rem; }
+  .page-body > div[style*="gap: 1.5rem"] { gap: 1rem !important; }
+
+  /* Header: less side padding, smaller gaps so the icons don't crowd the title */
+  header { height: 56px !important; padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+  header > div:first-child { gap: 0.5rem !important; min-width: 0; }
+  header > div:last-child { gap: 0.75rem !important; }
+
+  /* Cards and banners: smaller inner padding */
+  [style*="padding: 1.25rem"] { padding: 0.875rem !important; }
+  [style*="padding: 1.5rem"] { padding: 1rem !important; }
+  [style*="padding: 1.75rem"] { padding: 1.125rem !important; }
+  [style*="padding: 2rem"] { padding: 1.125rem !important; }
+  [style*="padding: 2.5rem"] { padding: 1.5rem !important; }
+
+  /* Headings and big numbers */
+  .page-body h2[style*="font-size: 1.5rem"] { font-size: 1.2rem !important; }
+  .page-body h2[style*="font-size: 1.375rem"] { font-size: 1.125rem !important; }
+  .page-body h3[style*="font-size: 1.5rem"] { font-size: 1.25rem !important; }
+  .page-body h3[style*="font-size: 1.75rem"] { font-size: 1.4rem !important; }
+
+  /* Stat tiles and category cards: two per row instead of one long column */
+  .page-body div[style*="minmax(200px, 1fr)"],
+  .page-body div[style*="minmax(190px, 1fr)"],
+  .page-body div[style*="minmax(220px, 1fr)"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.625rem !important;
+  }
+
+  /* Big banner button: full width, one line */
+  .page-body button[style*="padding: 0.8rem 1.75rem"] {
+    width: 100%;
+    padding: 0.65rem 1rem !important;
+    font-size: 0.9375rem !important;
+    white-space: nowrap;
+  }
+
+  /* Small buttons ("View All" etc.): keep the label on one line */
+  .page-body button[style*="padding: 0.4rem 0.85rem"] { white-space: nowrap; }
+
+  /* Stat tiles: smaller icon box, icon above the label so long labels fit */
+  .page-body [style*="padding: 0.75rem"][style*="border-radius: var(--radius-md)"] { padding: 0.5rem !important; }
+  .page-body div[style*="minmax(200px, 1fr)"] > div {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.5rem !important;
+  }
+
+  /* Complaint numbers stay on one line */
+  .page-body span[style*="font-family: monospace"] { white-space: nowrap; }
+
+  /* Complaint list cards: status badge goes below the text instead of squeezing it */
+  .page-body [style*="justify-content: space-between"][style*="cursor: pointer"] {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.5rem;
+  }
+}
