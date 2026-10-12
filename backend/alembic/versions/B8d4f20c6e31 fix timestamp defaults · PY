@@ -1,0 +1,30 @@
+"""fix timestamp defaults (now() string literal -> real now())
+
+Revision ID: b8d4f20c6e31
+Revises: a7c3e91d5b20
+"""
+from alembic import op
+
+revision = "b8d4f20c6e31"
+down_revision = "a7c3e91d5b20"
+branch_labels = None
+depends_on = None
+
+_COLUMNS = [
+    ("complaint_events", "created_at"),
+    ("audit_logs", "created_at"),
+    ("notifications", "created_at"),
+    ("complaint_attachments", "created_at"),
+    ("password_reset_otps", "created_at"),
+    ("refresh_tokens", "created_at"),
+    ("user_roles", "assigned_at"),
+]
+
+
+def upgrade() -> None:
+    for table, column in _COLUMNS:
+        op.execute(f"ALTER TABLE {table} ALTER COLUMN {column} SET DEFAULT now()")
+
+
+def downgrade() -> None:
+    pass
