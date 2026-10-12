@@ -1,5 +1,10 @@
+import base64
+import json
 import logging
 import re
+import urllib.error
+import urllib.parse
+import urllib.request
 from typing import Optional
 
 from app.core.config import settings
@@ -49,11 +54,39 @@ def send_whatsapp_message(phone: str, text: str) -> str:
 
     try:
         provider = settings.WHATSAPP_PROVIDER.strip().lower()
-        # TODO: yahan provider ke hisaab se API call aayegi (twilio / meta / gupshup ...)
+        if provider == "twilio":
+            return _send_twilio(phone, text)
         logger.warning("WhatsApp provider '%s' is not implemented yet.", provider)
         return NOT_CONFIGURED
     except Exception as exc:  # noqa: BLE001
         logger.error("WhatsApp send failed for %s: %s", phone, exc)
+        return FAILED
+
+
+def _send_twilio(phone: str, text: str) -> str:
+    account_sid = settings.WHATSAPP_ACCOUNT_SID
+    key_sid = settings.WHATSAPP_API_KEY_SID
+    secret = settings.WHATSAPP_API_KEY
+    sender = settings.WHATSAPP_SENDER
+    if not (account_sid and key_sid and secret and sender):
+        logger.warning("Twilio settings incomplete - message skipped.")
+        return NOT_CONFIGURED
+    if not sender.startswith("whatsapp:"):
+        sender = f"whatsapp:{sender}"
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    data = urllib.parse.urlencode({
+        "From": sender,
+        "To": f"whatsapp:{phone}",
+        "Body": text[:1500],
+    }).encode()
+    auth = base64.b64encode(f"{key_sid}:{secret}".encode()).decode()
+    req = urllib.request.Request(url, data=data, headers={"Authorization": f"Basic {auth}"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            json.loads(resp.read().decode())
+        return SENT
+    except urllib.error.HTTPError as exc:
+        logger.error("Twilio error %s: %s", exc.code, exc.read().decode()[:300])
         return FAILED
 
 
