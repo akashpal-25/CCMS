@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, status, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_permission, get_current_user
 from app.models.user import User
 from app.schemas.admin import (
     DepartmentCreateRequest, DepartmentUpdateRequest, DepartmentResponse,
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/admin", tags=["Super Admin"])
 
 @router.get("/departments", response_model=list[DepartmentResponse])
 def list_departments(
-    current_user: User = Depends(require_permission("department.manage")),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return AdminService(db).list_departments()
@@ -60,7 +60,7 @@ def update_department(
 @router.get("/courses", response_model=list[CourseResponse])
 def list_courses(
     department_id: Optional[uuid.UUID] = None,
-    current_user: User = Depends(require_permission("course.manage")),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return AdminService(db).list_courses(department_id)
@@ -90,7 +90,7 @@ def update_course(
 @router.get("/class-sections", response_model=list[ClassSectionResponse])
 def list_class_sections(
     course_id: Optional[uuid.UUID] = None,
-    current_user: User = Depends(require_permission("course.manage")),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return AdminService(db).list_class_sections(course_id)
