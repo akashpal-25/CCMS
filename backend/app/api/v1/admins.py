@@ -16,6 +16,9 @@ from app.schemas.admin import (
     RoutingRuleCreateRequest, RoutingRuleUpdateRequest, RoutingRuleResponse,
     RoleResponse, StaffCreateRequest, StaffResponse,
     RoleAssignRequest, UserRoleResponse, BulkImportResult,StudentCreateRequest, StudentResponse, UserListItemResponse,
+    ClassTeacherItem, ClassTeacherAssignRequest,
+    RoleCreateRequest, RoleUpdateRequest, PermissionResponse,
+    RolePermissionsUpdateRequest, RolePermissionsResponse,
 )
 from app.services.admin_service import AdminService
 
@@ -177,6 +180,81 @@ def list_roles(
     db: Session = Depends(get_db),
 ):
     return AdminService(db).list_roles()
+
+
+@router.post("/roles", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
+def create_role(
+    data: RoleCreateRequest,
+    current_user: User = Depends(require_permission("routing.manage")),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).create_role(current_user, data)
+
+
+@router.patch("/roles/{role_id}", response_model=RoleResponse)
+def update_role(
+    role_id: uuid.UUID,
+    data: RoleUpdateRequest,
+    current_user: User = Depends(require_permission("routing.manage")),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).update_role(current_user, role_id, data)
+
+
+@router.get("/permissions", response_model=list[PermissionResponse])
+def list_permissions(
+    current_user: User = Depends(require_permission("routing.manage")),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).list_permissions()
+
+
+@router.get("/roles/{role_id}/permissions", response_model=RolePermissionsResponse)
+def get_role_permissions(
+    role_id: uuid.UUID,
+    current_user: User = Depends(require_permission("routing.manage")),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).get_role_permissions(role_id)
+
+
+@router.put("/roles/{role_id}/permissions", response_model=RolePermissionsResponse)
+def set_role_permissions(
+    role_id: uuid.UUID,
+    data: RolePermissionsUpdateRequest,
+    current_user: User = Depends(require_permission("routing.manage")),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).set_role_permissions(current_user, role_id, data.permission_codes)
+
+
+# ---------- CLASS TEACHERS ----------
+
+@router.get("/class-teachers", response_model=list[ClassTeacherItem])
+def list_class_teachers(
+    current_user: User = Depends(require_permission("user.manage")),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).list_class_teachers()
+
+
+@router.put("/class-teachers/{section_id}")
+def set_class_teacher(
+    section_id: uuid.UUID,
+    data: ClassTeacherAssignRequest,
+    current_user: User = Depends(require_permission("user.manage")),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).set_class_teacher(current_user, section_id, data.user_id)
+
+
+@router.delete("/class-teachers/{section_id}")
+def remove_class_teacher(
+    section_id: uuid.UUID,
+    current_user: User = Depends(require_permission("user.manage")),
+    db: Session = Depends(get_db),
+):
+    return AdminService(db).remove_class_teacher(current_user, section_id)
 
 
 # ---------- ROUTING RULES ----------

@@ -30,6 +30,8 @@ class ComplaintCategory(Base, UUIDMixin, TimestampMixin):
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # STUDENT = students ko dikhegi | TEACHER = teacher form mein dikhegi | SYSTEM = kisi ko dropdown mein nahi dikhegi
+    audience: Mapped[str] = mapped_column(String(20), default="STUDENT", server_default="STUDENT", nullable=False)
 
 class RoutingRule(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "routing_rules"
@@ -55,7 +57,8 @@ class Complaint(Base, UUIDMixin, TimestampMixin):
 
     complaint_number: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
 
-    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    # Student ki complaint mein student_id bhara hota hai; teacher ki complaint mein khali (NULL)
+    student_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=True)
     domain_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("complaint_domains.id"), nullable=False)
     category_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("complaint_categories.id"), nullable=True)
 
@@ -68,6 +71,13 @@ class Complaint(Base, UUIDMixin, TimestampMixin):
     sla_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     sla_deadline_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     sla_status: Mapped[SLAStatus] = mapped_column(SAEnum(SLAStatus, name="sla_status"), default=SLAStatus.ON_TRACK)
+
+    # STUDENT (purani complaints) | TEACHER (teacher ki apni complaint) | TEACHER_STUDENT_REPORT (teacher ne student ki report ki)
+    complaint_type: Mapped[str] = mapped_column(String(30), default="STUDENT", server_default="STUDENT", nullable=False)
+    filed_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    subject_student_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=True)
+    parent_phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    whatsapp_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
 
 class ComplaintAssignment(Base, UUIDMixin, TimestampMixin):

@@ -289,7 +289,7 @@ const Settings = () => {
                   {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <Input label="Year / Semester" type="number" value={newSection.year_or_semester} onChange={(e) => setNewSection({ ...newSection, year_or_semester: e.target.value })} required />
+              <Input label="Semester" type="number" value={newSection.year_or_semester} onChange={(e) => setNewSection({ ...newSection, year_or_semester: e.target.value })} required />
               <Input label="Section Name" value={newSection.section_name} onChange={(e) => setNewSection({ ...newSection, section_name: e.target.value })} placeholder="e.g. A" required />
               <Button type="submit" variant="primary" icon={Plus} isLoading={submitting}>Add Section</Button>
             </form>
@@ -301,7 +301,7 @@ const Settings = () => {
               return (
                 <Card key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.875rem 1.25rem' }}>
                   <div>
-                    <strong style={{ fontSize: '0.875rem' }}>{course?.name} — Year/Sem {s.year_or_semester}, Section {s.section_name}</strong>
+                    <strong style={{ fontSize: '0.875rem' }}>{course?.name} — Semester {s.year_or_semester}, Section {s.section_name}</strong>
                   </div>
                   <StatusPill active={s.is_active} />
                 </Card>

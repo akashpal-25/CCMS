@@ -83,12 +83,20 @@ const AdminComplaintDetails = () => {
           </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: '0.35rem' }}>{complaint.title}</h2>
           <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-            Student: <strong>{complaint.student_name}</strong> ({complaint.student_college_id}) • {complaint.department_name} • Filed: {formatDate(complaint.created_at)}
+            {complaint.complaint_type === 'TEACHER' ? (
+              <>Filed by teacher: <strong>{complaint.filed_by_name}</strong> • {complaint.department_name} • Filed: {formatDate(complaint.created_at)}</>
+            ) : complaint.complaint_type === 'TEACHER_STUDENT_REPORT' ? (
+              <>Student: <strong>{complaint.student_name}</strong> • Roll No. {complaint.student_college_id} • {complaint.department_name}{complaint.student_course_name ? ` • ${complaint.student_course_name}` : ''}{complaint.student_semester ? ` • Semester ${complaint.student_semester}` : ''}{complaint.student_section ? ` • Section ${complaint.student_section}` : ''} • Reported by teacher: <strong>{complaint.filed_by_name}</strong> • Filed: {formatDate(complaint.created_at)}</>
+            ) : (
+              <>Student: <strong>{complaint.student_name}</strong> • Roll No. {complaint.student_college_id} • {complaint.department_name}{complaint.student_course_name ? ` • ${complaint.student_course_name}` : ''}{complaint.student_semester ? ` • Semester ${complaint.student_semester}` : ''}{complaint.student_section ? ` • Section ${complaint.student_section}` : ''} • Filed: {formatDate(complaint.created_at)}</>
+            )}
           </span>
         </div>
       </Card>
 
-      <SLATimer deadline={complaint.sla_deadline_at} status={complaint.status} />
+      {complaint.sla_deadline_at && (
+        <SLATimer deadline={complaint.sla_deadline_at} status={complaint.status} />
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '1.5rem' }}>
 
@@ -116,6 +124,7 @@ const AdminComplaintDetails = () => {
             </Card>
           )}
 
+          {complaint.viewer_can_act !== false && (
           <Card style={{ border: '2px solid var(--color-primary)', padding: '1.5rem' }}>
             <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--color-primary)' }}>Administrative Action Console</h4>
 
@@ -161,6 +170,7 @@ const AdminComplaintDetails = () => {
               </div>
             )}
           </Card>
+          )}
         </div>
 
         <div>

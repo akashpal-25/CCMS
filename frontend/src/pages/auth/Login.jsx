@@ -62,6 +62,8 @@ const Login = () => {
     const roleNames = (profile.roles || []).map((r) => r.role_name);
     if (roleNames.includes(ROLES.STUDENT)) {
       navigate('/student');
+    } else if (roleNames.length > 0 && roleNames.every((n) => n === ROLES.TEACHER)) {
+      navigate('/admin/teacher/complaints');
     } else if (roleNames.length > 0) {
       navigate('/admin');
     } else {

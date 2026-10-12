@@ -33,6 +33,8 @@ class UserRole(Base, UUIDMixin):
     role_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=False)
     department_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=True)
     scope_type: Mapped[ScopeType] = mapped_column(SAEnum(ScopeType, name="scope_type"), nullable=False)
+    # Kis complaint domain ka authority hai (khali = sab domains). Jaise Warden -> hostel
+    domain_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("complaint_domains.id"), nullable=True)
 
     assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

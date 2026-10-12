@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, require_permission
 from app.models.user import User
 from app.services.complaint_service import ComplaintService
 from app.schemas.complaint import ComplaintCreateRequest, ComplaintResponse, ComplaintListResponse, ComplaintActionRequest
@@ -13,6 +13,8 @@ from fastapi import UploadFile, File
 from fastapi.responses import FileResponse
 from app.schemas.complaint import AttachmentResponse
 from app.schemas.complaint import (
+    TeacherComplaintCreateRequest,
+    StudentReportCreateRequest,
     ComplaintCreateRequest,
     ComplaintResponse,
     ComplaintListResponse,
@@ -40,7 +42,10 @@ def list_active_categories(
     db: Session = Depends(get_db),
 ):
     from app.models.complaint import ComplaintDomain, ComplaintCategory
-    query = db.query(ComplaintCategory).filter(ComplaintCategory.is_active == True)
+    query = db.query(ComplaintCategory).filter(
+        ComplaintCategory.is_active == True,
+        ComplaintCategory.audience == "STUDENT",
+    )
     if domain_code:
         domain = db.query(ComplaintDomain).filter(ComplaintDomain.code == domain_code).first()
         if domain:
@@ -66,6 +71,43 @@ def get_my_complaints(
 ):
     service = ComplaintService(db)
     return service.get_my_complaints(current_user)
+
+# ---------- TEACHER COMPLAINTS ----------
+# (ye routes "/{complaint_id}" wale routes se pehle rakhe hain)
+
+@router.get("/teacher/categories", response_model=list[CategoryResponse])
+def list_teacher_categories(
+    current_user: User = Depends(require_permission("complaint.file_as_staff")),
+    db: Session = Depends(get_db),
+):
+    return ComplaintService(db).get_teacher_categories()
+
+
+@router.post("/teacher/complaint", response_model=ComplaintResponse)
+def file_teacher_complaint(
+    data: TeacherComplaintCreateRequest,
+    current_user: User = Depends(require_permission("complaint.file_as_staff")),
+    db: Session = Depends(get_db),
+):
+    return ComplaintService(db).file_teacher_complaint(current_user, data)
+
+
+@router.post("/teacher/student-report", response_model=ComplaintResponse)
+def file_student_report(
+    data: StudentReportCreateRequest,
+    current_user: User = Depends(require_permission("complaint.file_as_staff")),
+    db: Session = Depends(get_db),
+):
+    return ComplaintService(db).file_student_report(current_user, data)
+
+
+@router.get("/teacher/my", response_model=list[ComplaintListResponse])
+def get_teacher_complaints(
+    current_user: User = Depends(require_permission("complaint.file_as_staff")),
+    db: Session = Depends(get_db),
+):
+    return ComplaintService(db).get_teacher_complaints(current_user)
+
 
 @router.post("/{complaint_id}/action", response_model=ComplaintResponse)
 def complaint_action(

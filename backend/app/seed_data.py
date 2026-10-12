@@ -10,7 +10,8 @@ db = SessionLocal()
 print("Seeding Roles...")
 roles_data = [
     "STUDENT", "CLASS_TEACHER", "HOD", "EXAM_ADMIN",
-    "HR_FINANCE", "WARDEN", "TRANSPORT_SUPERVISOR", "DIRECTOR", "SUPER_ADMIN"
+    "HR_FINANCE", "WARDEN", "TRANSPORT_SUPERVISOR", "DIRECTOR", "SUPER_ADMIN",
+    "TEACHER", "CAMPUS_SUPERVISOR",
 ]
 roles = {}
 for name in roles_data:
@@ -38,6 +39,8 @@ permissions_data = [
     "domain.manage",
     "routing.manage",
     "user.manage",
+    # Staff (teacher) apni complaint file kar sake
+    "complaint.file_as_staff",
 ]
 permissions = {}
 for code in permissions_data:
@@ -53,14 +56,16 @@ for code in permissions_data:
 print("Linking Role -> Permissions...")
 role_permission_map = {
     "STUDENT": ["complaint.create", "complaint.view_own"],
-    "CLASS_TEACHER": ["complaint.resolve"],
+    "CLASS_TEACHER": ["complaint.resolve", "complaint.file_as_staff"],
+    "TEACHER": ["complaint.file_as_staff"],
+    "CAMPUS_SUPERVISOR": ["complaint.resolve"],
     "HOD": ["complaint.view_department", "complaint.assign", "complaint.resolve", "complaint.escalate"],
     "EXAM_ADMIN": ["complaint.resolve"],
     "HR_FINANCE": ["complaint.resolve"],
     "WARDEN": ["complaint.resolve"],
     "TRANSPORT_SUPERVISOR": ["complaint.resolve"],
     "DIRECTOR": ["complaint.view_global", "complaint.escalate", "complaint.resolve"],
-    "SUPER_ADMIN": list(permissions.keys()),
+    "SUPER_ADMIN": [code for code in permissions.keys() if code != "complaint.file_as_staff"],
 }
 for role_name, perm_codes in role_permission_map.items():
     role = roles[role_name]
@@ -125,16 +130,21 @@ for code, name in domains_data:
     print(f"  - {code}: {name}")
 
 print("Seeding Complaint Categories...")
+# (code, name, domain, audience)  audience: STUDENT = students ko dikhegi,
+# TEACHER = teacher complaint form mein, SYSTEM = kisi dropdown mein nahi
 categories_data = [
-    ("classroom", "Classroom", "academic"),
-    ("faculty", "Faculty / Teacher", "academic"),
-    ("timetable", "Timetable", "academic"),
+    ("classroom", "Classroom", "academic", "STUDENT"),
+    ("faculty", "Faculty / Teacher", "academic", "STUDENT"),
+    ("timetable", "Timetable", "academic", "STUDENT"),
+    ("teacher_general", "General", "academic", "TEACHER"),
+    ("teacher_hod", "Against HOD", "academic", "TEACHER"),
+    ("student_report", "Student Report", "academic", "SYSTEM"),
 ]
 categories = {}
-for code, name, domain_code in categories_data:
+for code, name, domain_code, audience in categories_data:
     cat = db.query(ComplaintCategory).filter(ComplaintCategory.code == code).first()
     if not cat:
-        cat = ComplaintCategory(code=code, name=name, domain_id=domains[domain_code].id, is_active=True)
+        cat = ComplaintCategory(code=code, name=name, domain_id=domains[domain_code].id, is_active=True, audience=audience)
         db.add(cat)
         db.commit()
         db.refresh(cat)
@@ -189,8 +199,8 @@ add_rule("library", None, 2, "DIRECTOR", "GLOBAL")
 add_rule("finance", None, 1, "HR_FINANCE", "GLOBAL")
 add_rule("finance", None, 2, "DIRECTOR", "GLOBAL")
 
-# General
-add_rule("general", None, 1, "HOD", "DEPARTMENT")
+# General (campus: washroom, etc.) - ek main authority (CAMPUS_SUPERVISOR) ko, HOD/class teacher ka koi role nahi
+add_rule("general", None, 1, "CAMPUS_SUPERVISOR", "GLOBAL")
 add_rule("general", None, 2, "DIRECTOR", "GLOBAL")
 
 # Hostel
@@ -200,6 +210,14 @@ add_rule("hostel", None, 2, "DIRECTOR", "GLOBAL")
 # Transport
 add_rule("transport", None, 1, "TRANSPORT_SUPERVISOR", "GLOBAL")
 add_rule("transport", None, 2, "DIRECTOR", "GLOBAL")
+
+# Teacher complaints (koi escalation/SLA nahi; sabhi levels ek saath assign hote hain)
+add_rule("academic", "teacher_general", 1, "HOD", "DEPARTMENT")
+add_rule("academic", "teacher_general", 2, "DIRECTOR", "GLOBAL")
+add_rule("academic", "teacher_hod", 1, "DIRECTOR", "GLOBAL")
+
+# Teacher ne student ki report ki -> student ke department ka HOD
+add_rule("academic", "student_report", 1, "HOD", "DEPARTMENT")
 
 db.close()
 print("\n✅ Seeding complete!")

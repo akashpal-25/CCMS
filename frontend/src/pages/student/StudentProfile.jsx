@@ -44,7 +44,7 @@ const StudentProfile = () => {
           </div>
           <div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{user?.full_name}</h3>
-            <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Roll / ID: {profile?.student_id}</span>
+            <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Roll No.: {profile?.student_id}</span>
           </div>
         </div>
 

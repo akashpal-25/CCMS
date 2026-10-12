@@ -284,6 +284,10 @@ class StaffCreateRequest(BaseModel):
 
     role_id: uuid.UUID
     scope_type: ScopeType
+    # Kis complaint domain ka authority hai (khali = sab domains). Jaise Warden -> hostel
+    domain_id: Optional[uuid.UUID] = None
+    # Role CLASS_TEACHER ho to ye zaroori hai (kaun si class ka teacher)
+    class_section_id: Optional[uuid.UUID] = None
 
     @field_validator("full_name")
     @classmethod
@@ -303,6 +307,7 @@ class StaffResponse(BaseModel):
     employee_id: str
     designation: str
     department_id: Optional[uuid.UUID]
+    domain_id: Optional[uuid.UUID] = None
     role_name: str
     scope_type: ScopeType
 
@@ -314,6 +319,9 @@ class RoleAssignRequest(BaseModel):
     role_id: uuid.UUID
     department_id: Optional[uuid.UUID] = None
     scope_type: ScopeType
+    domain_id: Optional[uuid.UUID] = None
+    # Role CLASS_TEACHER ho to ye zaroori hai
+    class_section_id: Optional[uuid.UUID] = None
 
 
 class UserRoleResponse(BaseModel):
@@ -321,6 +329,7 @@ class UserRoleResponse(BaseModel):
     user_id: uuid.UUID
     role_id: uuid.UUID
     department_id: Optional[uuid.UUID]
+    domain_id: Optional[uuid.UUID] = None
     scope_type: ScopeType
 
     class Config:
@@ -345,8 +354,8 @@ class StudentCreateRequest(BaseModel):
     student_id: str = Field(min_length=2, max_length=30)
     department_id: uuid.UUID
     course_id: uuid.UUID
-    class_section_id: Optional[uuid.UUID] = None
-    semester: Optional[int] = Field(default=None, ge=1, le=12)
+    class_section_id: uuid.UUID  # ab zaroori hai (semester isi section se aata hai)
+    semester: Optional[int] = Field(default=None, ge=1, le=12)  # ignore hota hai, section ka semester use hota hai
     academic_session: Optional[str] = Field(default=None, max_length=20)
     admission_year: Optional[int] = Field(default=None, ge=2000, le=2100)
 
@@ -376,3 +385,57 @@ class UserListItemResponse(BaseModel):
     full_name: str
     is_active: bool
     roles: list[str] = []
+
+
+# ---------- CLASS TEACHER MAPPING ----------
+
+class ClassTeacherItem(BaseModel):
+    class_section_id: uuid.UUID
+    course_id: uuid.UUID
+    course_name: str
+    department_id: uuid.UUID
+    department_name: str
+    year_or_semester: int
+    section_name: str
+    teacher_user_id: Optional[uuid.UUID] = None
+    teacher_name: Optional[str] = None
+    teacher_email: Optional[str] = None
+
+
+class ClassTeacherAssignRequest(BaseModel):
+    user_id: uuid.UUID
+
+
+# ---------- ROLE & PERMISSION MANAGEMENT (sirf Super Admin) ----------
+
+class RoleCreateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=50, pattern=CODE_PATTERN)
+    description: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value):
+        return _clean_code(value)
+
+
+class RoleUpdateRequest(BaseModel):
+    description: Optional[str] = Field(default=None, max_length=500)
+    is_active: Optional[bool] = None
+
+
+class PermissionResponse(BaseModel):
+    id: uuid.UUID
+    code: str
+    description: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class RolePermissionsUpdateRequest(BaseModel):
+    permission_codes: list[str]
+
+
+class RolePermissionsResponse(BaseModel):
+    role_id: uuid.UUID
+    permission_codes: list[str]

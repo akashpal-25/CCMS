@@ -387,6 +387,57 @@ class AdminService:
             department_id = None
         return department_id
 
+    CLASS_TEACHER_ROLE_NAME = "CLASS_TEACHER"
+    # In roles ko department zaroori hai (GLOBAL scope allowed nahi)
+    DEPARTMENT_ONLY_ROLES = {"CLASS_TEACHER", "TEACHER"}
+
+    # In roles ke liye domain ka matlab nahi (class teacher apni class, teacher apni complaint, super admin sab)
+    NO_DOMAIN_ROLES = {"CLASS_TEACHER", "TEACHER", "SUPER_ADMIN"}
+
+    def _resolve_domain(self, role, domain_id):
+        """Staff ki domain: valid ho to uska id, nahi to None (None = sab domains)."""
+        if role.name in self.NO_DOMAIN_ROLES or not domain_id:
+            return None
+        return self._get_domain_or_404(domain_id).id
+
+    def _prepare_class_teacher(self, role, scope_type, class_section_id):
+        """
+        Role CLASS_TEACHER ho to class section check karta hai.
+        Returns (section, department_id). Baaki roles ke liye (None, None).
+        """
+        if role.name != self.CLASS_TEACHER_ROLE_NAME:
+            return None, None
+
+        if scope_type != ScopeType.DEPARTMENT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Class Teacher must have DEPARTMENT scope."
+            )
+        if not class_section_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Department, course, semester and section are required for a Class Teacher."
+            )
+        section = self._get_section_or_404(class_section_id)
+        course = self._get_course_or_404(section.course_id)
+
+        from app.models.class_teacher import ClassTeacherAssignment
+        existing = self.db.query(ClassTeacherAssignment).filter(
+            ClassTeacherAssignment.class_section_id == section.id
+        ).first()
+        if existing:
+            teacher = self.repo.get_user_by_id(existing.user_id)
+            raise self._conflict(
+                f"This class already has a Class Teacher ({teacher.full_name if teacher else 'unknown'}). "
+                "Only one class teacher is allowed per class."
+            )
+        return section, course.department_id
+
+    def _save_class_teacher(self, user_id, section_id):
+        from app.models.class_teacher import ClassTeacherAssignment
+        row = ClassTeacherAssignment(user_id=user_id, class_section_id=section_id)
+        return self.repo.save(row)
+
     def create_staff(self, actor: User, data):
         if self.repo.get_user_by_email(data.email):
             raise self._conflict(f"A user with email '{data.email}' already exists.")
@@ -402,23 +453,53 @@ class AdminService:
         if not role:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found.")
 
-        if data.department_id:
-            self._get_department_or_404(data.department_id)
+        scope_type = data.scope_type
+        department_input = data.department_id
 
-        department_id = self._resolve_scope(data.scope_type, data.department_id)
+        # Super Admin hamesha GLOBAL hota hai
+        if role.name == "SUPER_ADMIN":
+            scope_type = ScopeType.GLOBAL
+            department_input = None
+
+        if role.name in self.DEPARTMENT_ONLY_ROLES and scope_type != ScopeType.DEPARTMENT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{role.name.replace('_', ' ').title()} must have DEPARTMENT scope."
+            )
+
+        # Class teacher: section se department nikalta hai aur sab validate karta hai
+        section, section_department_id = self._prepare_class_teacher(role, scope_type, data.class_section_id)
+        if section_department_id:
+            if department_input and department_input != section_department_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="This class section does not belong to the selected department."
+                )
+            department_input = section_department_id
+
+        if department_input:
+            self._get_department_or_404(department_input)
+
+        department_id = self._resolve_scope(scope_type, department_input)
+        domain_id = self._resolve_domain(role, data.domain_id)
 
         user = self.repo.create_user(email=data.email, full_name=data.full_name, mobile_number=data.mobile_number)
         self.repo.create_staff_profile(
             user_id=user.id, employee_id=employee_id,
-            designation=data.designation, department_id=data.department_id,
+            designation=data.designation, department_id=department_id,
         )
         user_role = self.repo.create_user_role(
-            user_id=user.id, role_id=role.id, department_id=department_id, scope_type=data.scope_type,
+            user_id=user.id, role_id=role.id, department_id=department_id, scope_type=scope_type,
+            domain_id=domain_id,
         )
+        if section:
+            self._save_class_teacher(user.id, section.id)
 
         self._audit(actor, "STAFF_CREATED", "User", user.id, new={
             "email": user.email, "employee_id": data.employee_id,
             "role": role.name, "department_id": str(department_id) if department_id else None,
+            "domain_id": str(domain_id) if domain_id else None,
+            "class_section_id": str(section.id) if section else None,
         })
 
         return {
@@ -427,7 +508,8 @@ class AdminService:
             "full_name": user.full_name,
             "employee_id": employee_id,
             "designation": data.designation,
-            "department_id": data.department_id,
+            "department_id": department_id,
+            "domain_id": domain_id,
             "role_name": role.name,
             "scope_type": user_role.scope_type,
         }
@@ -442,24 +524,223 @@ class AdminService:
         if not role:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found.")
 
-        if data.department_id:
-            self._get_department_or_404(data.department_id)
+        scope_type = data.scope_type
+        department_input = data.department_id
+        if role.name == "SUPER_ADMIN":
+            scope_type = ScopeType.GLOBAL
+            department_input = None
 
-        department_id = self._resolve_scope(data.scope_type, data.department_id)
+        if role.name in self.DEPARTMENT_ONLY_ROLES and scope_type != ScopeType.DEPARTMENT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{role.name.replace('_', ' ').title()} must have DEPARTMENT scope."
+            )
 
-        existing = self.repo.get_user_role(data.user_id, data.role_id, department_id)
+        section, section_department_id = self._prepare_class_teacher(role, scope_type, data.class_section_id)
+        if section_department_id:
+            if department_input and department_input != section_department_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="This class section does not belong to the selected department."
+                )
+            department_input = section_department_id
+
+        if department_input:
+            self._get_department_or_404(department_input)
+
+        department_id = self._resolve_scope(scope_type, department_input)
+
+        domain_id = self._resolve_domain(role, data.domain_id)
+
+        existing = self.repo.get_user_role(data.user_id, data.role_id, department_id, domain_id)
         if existing:
-            raise self._conflict("This user already has this role for the given department scope.")
+            raise self._conflict("This user already has this role for the given department scope and domain.")
 
         user_role = self.repo.create_user_role(
-            user_id=data.user_id, role_id=data.role_id, department_id=department_id, scope_type=data.scope_type,
+            user_id=data.user_id, role_id=data.role_id, department_id=department_id, scope_type=scope_type,
+            domain_id=domain_id,
         )
+        if section:
+            self._save_class_teacher(data.user_id, section.id)
 
         self._audit(actor, "ROLE_ASSIGNED", "UserRole", user_role.id, new={
             "user_id": str(data.user_id), "role": role.name,
             "department_id": str(department_id) if department_id else None,
+            "domain_id": str(domain_id) if domain_id else None,
+            "class_section_id": str(section.id) if section else None,
         })
         return user_role
+
+    # ---------- CLASS TEACHER MAPPING ----------
+
+    def list_class_teachers(self):
+        from app.models.class_teacher import ClassTeacherAssignment
+        sections = (
+            self.db.query(ClassSection)
+            .filter(ClassSection.is_active == True)
+            .order_by(ClassSection.course_id, ClassSection.year_or_semester, ClassSection.section_name)
+            .all()
+        )
+        result = []
+        for section in sections:
+            course = self.db.query(Course).filter(Course.id == section.course_id).first()
+            if not course:
+                continue
+            department = self.db.query(Department).filter(Department.id == course.department_id).first()
+            assignment = self.db.query(ClassTeacherAssignment).filter(
+                ClassTeacherAssignment.class_section_id == section.id
+            ).first()
+            teacher = self.repo.get_user_by_id(assignment.user_id) if assignment else None
+            result.append({
+                "class_section_id": section.id,
+                "course_id": course.id,
+                "course_name": course.name,
+                "department_id": course.department_id,
+                "department_name": department.name if department else "",
+                "year_or_semester": section.year_or_semester,
+                "section_name": section.section_name,
+                "teacher_user_id": teacher.id if teacher else None,
+                "teacher_name": teacher.full_name if teacher else None,
+                "teacher_email": teacher.email if teacher else None,
+            })
+        return result
+
+    def set_class_teacher(self, actor: User, section_id: uuid.UUID, user_id: uuid.UUID):
+        """Is class ka class teacher set / badal deta hai (ek class ka sirf ek teacher)."""
+        from app.models.class_teacher import ClassTeacherAssignment
+        from app.models.user import UserRole
+
+        section = self._get_section_or_404(section_id)
+        course = self._get_course_or_404(section.course_id)
+
+        user = self.repo.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+        role = self.repo.get_role_by_name(self.CLASS_TEACHER_ROLE_NAME)
+        has_role = role and self.db.query(UserRole).filter(
+            UserRole.user_id == user_id, UserRole.role_id == role.id
+        ).first()
+        if not has_role:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This user does not have the Class Teacher role."
+            )
+        # Class teacher apne hi department ki class ka ho sakta hai
+        if has_role.department_id and has_role.department_id != course.department_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This teacher belongs to a different department than the class."
+            )
+
+        row = self.db.query(ClassTeacherAssignment).filter(
+            ClassTeacherAssignment.class_section_id == section_id
+        ).first()
+        old_user_id = row.user_id if row else None
+        if row:
+            row.user_id = user_id
+            self.repo.save(row)
+        else:
+            self._save_class_teacher(user_id, section_id)
+
+        self._audit(actor, "CLASS_TEACHER_SET", "ClassSection", section_id,
+                    old={"user_id": str(old_user_id) if old_user_id else None},
+                    new={"user_id": str(user_id)})
+        return {"detail": "Class teacher updated."}
+
+    def remove_class_teacher(self, actor: User, section_id: uuid.UUID):
+        from app.models.class_teacher import ClassTeacherAssignment
+        row = self.db.query(ClassTeacherAssignment).filter(
+            ClassTeacherAssignment.class_section_id == section_id
+        ).first()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No class teacher assigned to this class.")
+        old_user_id = row.user_id
+        self.db.delete(row)
+        self.db.commit()
+        self._audit(actor, "CLASS_TEACHER_REMOVED", "ClassSection", section_id,
+                    old={"user_id": str(old_user_id)})
+        return {"detail": "Class teacher removed."}
+
+    # ---------- ROLE & PERMISSION MANAGEMENT ----------
+
+    LOCKED_ROLES = {"SUPER_ADMIN"}          # permissions badal nahi sakte
+    PROTECTED_ROLES = {"SUPER_ADMIN", "STUDENT"}  # deactivate nahi kar sakte
+
+    def create_role(self, actor: User, data):
+        if self.repo.get_role_by_name(data.name):
+            raise self._conflict(f"Role '{data.name}' already exists.")
+        role = Role(name=data.name, description=data.description or f"{data.name} role", is_active=True)
+        role = self.repo.save(role)
+        self._audit(actor, "ROLE_CREATED", "Role", role.id, new={"name": role.name})
+        return role
+
+    def update_role(self, actor: User, role_id: uuid.UUID, data):
+        role = self.repo.get_role_by_id(role_id)
+        if not role:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found.")
+        changes = self._clean_changes(data)
+        if changes.get("is_active") is False and role.name in self.PROTECTED_ROLES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{role.name} role cannot be deactivated."
+            )
+        old = {"description": role.description, "is_active": role.is_active}
+        for field, value in changes.items():
+            setattr(role, field, value)
+        role = self.repo.save(role)
+        self._audit(actor, "ROLE_UPDATED", "Role", role.id, old=old,
+                    new={"description": role.description, "is_active": role.is_active})
+        return role
+
+    def list_permissions(self):
+        from app.models.permission import Permission
+        return self.db.query(Permission).order_by(Permission.code).all()
+
+    def get_role_permissions(self, role_id: uuid.UUID):
+        from app.models.role import RolePermission
+        from app.models.permission import Permission
+        role = self.repo.get_role_by_id(role_id)
+        if not role:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found.")
+        codes = [
+            r[0] for r in self.db.query(Permission.code)
+            .join(RolePermission, RolePermission.permission_id == Permission.id)
+            .filter(RolePermission.role_id == role_id)
+            .order_by(Permission.code).all()
+        ]
+        return {"role_id": role.id, "permission_codes": codes}
+
+    def set_role_permissions(self, actor: User, role_id: uuid.UUID, codes: list):
+        from app.models.role import RolePermission
+        from app.models.permission import Permission
+        role = self.repo.get_role_by_id(role_id)
+        if not role:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found.")
+        if role.name in self.LOCKED_ROLES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Permissions of {role.name} cannot be changed."
+            )
+
+        wanted = set(codes)
+        permissions = self.db.query(Permission).filter(Permission.code.in_(wanted)).all() if wanted else []
+        found = {p.code for p in permissions}
+        unknown = wanted - found
+        if unknown:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown permission(s): {', '.join(sorted(unknown))}"
+            )
+
+        old = self.get_role_permissions(role_id)["permission_codes"]
+        self.db.query(RolePermission).filter(RolePermission.role_id == role_id).delete()
+        for permission in permissions:
+            self.db.add(RolePermission(role_id=role_id, permission_id=permission.id))
+        self.db.commit()
+
+        self._audit(actor, "ROLE_PERMISSIONS_UPDATED", "Role", role_id, old={"codes": old}, new={"codes": sorted(found)})
+        return self.get_role_permissions(role_id)
 
     def ensure_student_role(self, actor: User, user_id: uuid.UUID):
         """
@@ -484,7 +765,7 @@ class AdminService:
         self._audit(actor, "STUDENT_ROLE_ASSIGNED", "UserRole", user_role.id, new={"user_id": str(user_id)})
         return user_role
     
-    STUDENT_CSV_REQUIRED_COLUMNS = {"email", "full_name", "student_id", "department_code", "course_code"}
+    STUDENT_CSV_REQUIRED_COLUMNS = {"email", "full_name", "student_id", "department_code", "course_code", "section_name"}
 
     def import_students_csv(self, actor: User, csv_text: str):
         import csv
@@ -496,10 +777,13 @@ class AdminService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CSV file is empty or invalid.")
 
         missing_columns = self.STUDENT_CSV_REQUIRED_COLUMNS - set(reader.fieldnames)
+        # Semester ka column "semester" ya purana naam "year_or_semester" dono chalte hain
+        if "semester" not in reader.fieldnames and "year_or_semester" not in reader.fieldnames:
+            missing_columns = set(missing_columns) | {"semester"}
         if missing_columns:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"CSV missing required columns: {', '.join(missing_columns)}"
+                detail=f"CSV missing required columns: {', '.join(sorted(missing_columns))}"
             )
 
         student_role = self.repo.get_role_by_name("STUDENT")
@@ -525,6 +809,8 @@ class AdminService:
             try:
                 if not email or not full_name or not student_id_value or not department_code or not course_code:
                     raise ValueError("One or more required fields are empty.")
+                if not section_name:
+                    raise ValueError("section_name is required.")
 
                 if email in seen_emails:
                     raise ValueError("Duplicate email within this file.")
@@ -544,17 +830,16 @@ class AdminService:
                 if not course or not course.is_active or course.department_id != department.id:
                     raise ValueError(f"Course code '{course_code}' not found in department '{department_code}'.")
 
-                class_section_id = None
-                year_or_semester = None
-                if row.get("year_or_semester"):
-                    year_or_semester = int(row["year_or_semester"])
-                    if section_name:
-                        section = self.repo.find_class_section(course.id, year_or_semester, section_name)
-                        if not section:
-                            raise ValueError(f"Class section '{section_name}' not found for this course/year.")
-                        class_section_id = section.id
+                semester_text = (row.get("semester") or row.get("year_or_semester") or "").strip()
+                if not semester_text:
+                    raise ValueError("semester is required.")
+                semester_value = int(semester_text)
+                section = self.repo.find_class_section(course.id, semester_value, section_name)
+                if not section:
+                    raise ValueError(f"Class section '{section_name}' (semester {semester_value}) not found for this course.")
+                class_section_id = section.id
 
-                semester = int(row["semester"]) if row.get("semester") else None
+                semester = section.year_or_semester
                 admission_year = int(row["admission_year"]) if row.get("admission_year") else None
                 academic_session = (row.get("academic_session") or "").strip() or None
 
@@ -607,13 +892,12 @@ class AdminService:
         if not course.is_active:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Course is inactive.")
 
-        if data.class_section_id:
-            section = self.repo.get_class_section_by_id(data.class_section_id)
-            if not section or section.course_id != course.id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="This class section does not belong to the given course."
-                )
+        section = self.repo.get_class_section_by_id(data.class_section_id)
+        if not section or section.course_id != course.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This class section does not belong to the given course."
+            )
 
         student_role = self.repo.get_role_by_name("STUDENT")
         if not student_role:
@@ -624,7 +908,7 @@ class AdminService:
         self.repo.create_student_profile(
             user_id=user.id, student_id=data.student_id, department_id=department.id,
             course_id=course.id, class_section_id=data.class_section_id,
-            semester=data.semester, academic_session=data.academic_session,
+            semester=section.year_or_semester, academic_session=data.academic_session,
             admission_year=data.admission_year,
         )
 
@@ -670,13 +954,12 @@ class AdminService:
         return result
 
     def toggle_user_active(self, actor: User, user_id: uuid.UUID):
-        def toggle_user_active(self, actor: User, user_id: uuid.UUID):
-          if actor.id == user_id:
+        if actor.id == user_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="You cannot deactivate your own account."
             )
-          user = self.repo.get_user_by_id(user_id)
+        user = self.repo.get_user_by_id(user_id)
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
         old_active = user.is_active

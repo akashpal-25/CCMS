@@ -81,6 +81,65 @@ class UserRepository:
             return None
         return self.db.query(User).filter(User.id == user_role.user_id).first()
 
+    # ---------- NAYE METHODS (ek se zyada staff / class teacher ke liye) ----------
+    @staticmethod
+    def _domain_filter(domain_id):
+        """Staff ka domain khali hai (sab domains) ya complaint ki domain se match karta hai."""
+        from sqlalchemy import or_
+        if not domain_id:
+            return True
+        return or_(UserRole.domain_id.is_(None), UserRole.domain_id == domain_id)
+
+    def find_all_staff_by_role_and_department(self, role_id: uuid.UUID, department_id: uuid.UUID, domain_id=None) -> list:
+        """Is role + department (+ domain) wale SAARE active staff (sirf pehla nahi)."""
+        if not department_id:
+            return []
+        user_ids = [
+            r[0] for r in self.db.query(UserRole.user_id)
+            .filter(UserRole.role_id == role_id, UserRole.department_id == department_id,
+                    self._domain_filter(domain_id))
+            .all()
+        ]
+        if not user_ids:
+            return []
+        return self.db.query(User).filter(User.id.in_(user_ids), User.is_active == True).all()
+
+    def find_all_staff_by_role_global(self, role_id: uuid.UUID, domain_id=None) -> list:
+        """Is role (+ domain) wale SAARE active staff (kisi bhi department ke)."""
+        user_ids = [
+            r[0] for r in self.db.query(UserRole.user_id)
+            .filter(UserRole.role_id == role_id, self._domain_filter(domain_id))
+            .all()
+        ]
+        if not user_ids:
+            return []
+        return self.db.query(User).filter(User.id.in_(user_ids), User.is_active == True).all()
+
+    def find_class_teacher(self, class_section_id: uuid.UUID):
+        """Is class section ka assigned class teacher (active ho to)."""
+        if not class_section_id:
+            return None
+        from app.models.class_teacher import ClassTeacherAssignment
+        row = self.db.query(ClassTeacherAssignment).filter(
+            ClassTeacherAssignment.class_section_id == class_section_id
+        ).first()
+        if not row:
+            return None
+        return self.db.query(User).filter(User.id == row.user_id, User.is_active == True).first()
+
+    def get_role_by_id(self, role_id: uuid.UUID):
+        return self.db.query(Role).filter(Role.id == role_id).first()
+
+    def get_staff_department_id(self, user_id: uuid.UUID):
+        """Staff ka department: pehle StaffProfile se, nahi to DEPARTMENT-scope role se."""
+        profile = self.db.query(StaffProfile).filter(StaffProfile.user_id == user_id).first()
+        if profile and profile.department_id:
+            return profile.department_id
+        user_role = self.db.query(UserRole).filter(
+            UserRole.user_id == user_id, UserRole.department_id.isnot(None)
+        ).first()
+        return user_role.department_id if user_role else None
+
 
 class RefreshTokenRepository:
     def __init__(self, db: Session):

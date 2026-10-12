@@ -75,4 +75,37 @@ export const complaintService = {
     const response = await api.get('/complaints/categories', { params: { domain_code: domainCode } });
     return response.data;
   },
+
+  // ---------- Teacher complaints ----------
+  getTeacherCategories: async () => {
+    const response = await api.get('/complaints/teacher/categories');
+    return response.data;
+  },
+
+  submitTeacherComplaint: async ({ categoryCode, title, description }) => {
+    const response = await api.post('/complaints/teacher/complaint', {
+      category_code: categoryCode,
+      title,
+      description,
+    });
+    return response.data;
+  },
+
+  submitStudentReport: async ({ departmentId, courseId, classSectionId, rollNo, parentPhone, title, description }) => {
+    const response = await api.post('/complaints/teacher/student-report', {
+      department_id: departmentId,
+      course_id: courseId,
+      class_section_id: classSectionId,
+      roll_no: rollNo,
+      parent_phone: parentPhone,
+      title,
+      description,
+    });
+    return response.data;
+  },
+
+  getTeacherComplaints: async () => {
+    const response = await api.get('/complaints/teacher/my');
+    return response.data;
+  },
 };

@@ -33,6 +33,11 @@ import RoleManagement from '../pages/admin/RoleManagement';
 import Reports from '../pages/admin/Reports';
 import Settings from '../pages/admin/Settings';
 
+// Teacher Pages
+import TeacherComplaints from '../pages/teacher/TeacherComplaints';
+import NewTeacherComplaint from '../pages/teacher/NewTeacherComplaint';
+import ReportStudent from '../pages/teacher/ReportStudent';
+
 // Error Pages
 import NotFound from '../pages/error/NotFound';
 
@@ -40,18 +45,6 @@ import ForgotPassword from '../pages/auth/ForgotPassword';
 import ResetPassword from '../pages/auth/ResetPassword';
 
 const AppRoutes = () => {
-  const allAdminRoles = [
-    ROLES.CLASS_TEACHER,
-    ROLES.HOD,
-    ROLES.EXAM_ADMIN,
-    ROLES.LIBRARY_ADMIN,
-    ROLES.WARDEN,
-    ROLES.TRANSPORT_SUPERVISOR,
-    ROLES.HR_FINANCE_ADMIN,
-    ROLES.DIRECTOR,
-    ROLES.SUPER_ADMIN
-  ];
-
   return (
     <Routes>
       {/* Public Auth Routes */}
@@ -80,7 +73,8 @@ const AppRoutes = () => {
       </Route>
 
       {/* Admin Protected Portal */}
-      <Route element={<RoleRoute allowedRoles={allAdminRoles} />}>
+      {/* Student ke alawa koi bhi role (naye/custom roles bhi) /admin portal mein aa sakta hai */}
+      <Route element={<RoleRoute excludeRoles={[ROLES.STUDENT]} />}>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="complaints" element={<ComplaintQueue />} />
@@ -88,6 +82,11 @@ const AppRoutes = () => {
           <Route path="escalated" element={<EscalatedComplaints />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="reports" element={<Reports />} />
+          <Route element={<RoleRoute allowedRoles={[ROLES.TEACHER, ROLES.CLASS_TEACHER]} />}>
+            <Route path="teacher/complaints" element={<TeacherComplaints />} />
+            <Route path="teacher/new" element={<NewTeacherComplaint />} />
+            <Route path="teacher/report-student" element={<ReportStudent />} />
+          </Route>
           <Route element={<RoleRoute allowedRoles={[ROLES.SUPER_ADMIN]} />}>
             <Route path="users" element={<UserManagement />} />
             <Route path="roles" element={<RoleManagement />} />

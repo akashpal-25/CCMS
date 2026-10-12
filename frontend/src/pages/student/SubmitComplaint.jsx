@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft } from 'lucide-react';
 import { useStudentStore } from '../../store/studentStore';
@@ -21,6 +21,7 @@ const SubmitComplaint = () => {
   const [description, setDescription] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [errors, setErrors] = useState({});
+  const submittingRef = useRef(false); // bar-bar click se ek hi complaint submit ho
 
   useEffect(() => {
     complaintService.getActiveDomains().then((data) => {
@@ -48,7 +49,9 @@ const SubmitComplaint = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (!validate()) return;
+    submittingRef.current = true;
 
     try {
       const created = await submitComplaint(
@@ -58,6 +61,7 @@ const SubmitComplaint = () => {
       navigate(`/student/complaints/${created.id}`);
     } catch {
       // error store me handle ho chuka hai
+      submittingRef.current = false;
     }
   };
 

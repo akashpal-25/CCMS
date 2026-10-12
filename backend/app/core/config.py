@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str
     SMTP_FROM_EMAIL: str
     SMTP_USE_TLS: bool = True
+    # WhatsApp (OPTIONAL) - khali chhodoge to complaint normal chalegi, bas parent ko message nahi jayega
+    WHATSAPP_PROVIDER: str = ""      # baad mein provider ka naam yahan aayega (jaise "twilio" / "meta")
+    WHATSAPP_API_KEY: str = ""
+    WHATSAPP_SENDER: str = ""
+
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE_MB: int = 5
 

@@ -15,6 +15,7 @@ const ComplaintQueue = () => {
   const [allComplaints, setAllComplaints] = useState([]);
   const [search, setSearch] = useState('');
   const [domainFilter, setDomainFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [departmentFilter, setDepartmentFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,16 @@ const ComplaintQueue = () => {
     const unique = new Set(allComplaints.map((c) => c.domain_name).filter(Boolean));
     return Array.from(unique);
   }, [allComplaints]);
+  // Domain chunne ke baad sirf us domain ki categories dikhti hain
+  const categoryOptions = useMemo(() => {
+    const unique = new Set(
+      allComplaints
+        .filter((c) => domainFilter === 'ALL' || c.domain_name === domainFilter)
+        .map((c) => c.category_name)
+        .filter(Boolean)
+    );
+    return Array.from(unique).sort();
+  }, [allComplaints, domainFilter]);
   const departmentOptions = useMemo(() => {
     const unique = new Set(allComplaints.map((c) => c.department_name).filter(Boolean));
     return Array.from(unique).sort();
@@ -43,9 +54,10 @@ const ComplaintQueue = () => {
     const q = search.toLowerCase();
     const matchesSearch = !q || c.title.toLowerCase().includes(q) || c.complaint_number.toLowerCase().includes(q) || (c.student_name || '').toLowerCase().includes(q);
     const matchesDomain = domainFilter === 'ALL' || c.domain_name === domainFilter;
+    const matchesCategory = categoryFilter === 'ALL' || c.category_name === categoryFilter;
     const matchesDepartment = departmentFilter === 'ALL' || c.department_name === departmentFilter;
     const matchesStatus = statusFilter === 'ALL' || c.status === statusFilter;
-    return matchesSearch && matchesDomain && matchesDepartment && matchesStatus;
+    return matchesSearch && matchesDomain && matchesCategory && matchesDepartment && matchesStatus;
   });
 
   const headers = ['Complaint No.', 'Student', 'Department', 'Domain', 'Status', 'Date', 'Action'];
@@ -79,12 +91,24 @@ const ComplaintQueue = () => {
         </select>
         <select
           value={domainFilter}
-          onChange={(e) => setDomainFilter(e.target.value)}
+          onChange={(e) => { setDomainFilter(e.target.value); setCategoryFilter('ALL'); }}
           style={{ padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '0.8125rem' }}
         >
           <option value="ALL">All Domains</option>
           {domainOptions.map((d) => (
             <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          disabled={categoryOptions.length === 0}
+          style={{ padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '0.8125rem' }}
+        >
+          <option value="ALL">All Categories</option>
+          {categoryOptions.map((c) => (
+            <option key={c} value={c}>{c}</option>
           ))}
         </select>
 
@@ -110,7 +134,9 @@ const ComplaintQueue = () => {
                 <td style={{ padding: '1rem', fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-primary)' }}>{c.complaint_number}</td>
                 <td style={{ padding: '1rem' }}>
                   <div style={{ fontWeight: 600 }}>{c.student_name}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{c.student_college_id}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                    {c.student_college_id}{c.student_semester ? ` • Sem ${c.student_semester}` : ''}{c.student_section ? ` • Sec ${c.student_section}` : ''}
+                  </div>
                 </td>
                 <td style={{ padding: '1rem', fontSize: '0.8125rem' }}>{c.department_name}</td>
                 <td style={{ padding: '1rem', fontSize: '0.8125rem' }}>{c.domain_name}</td>

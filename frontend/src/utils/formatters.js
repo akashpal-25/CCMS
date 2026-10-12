@@ -28,7 +28,9 @@ export const getRoleDisplayName = (role) => {
     WARDEN: 'Chief Hostel Warden',
     TRANSPORT_SUPERVISOR: 'Transport Supervisor',
     DIRECTOR: 'Director',
-    SUPER_ADMIN: 'Super Administrator'
+    SUPER_ADMIN: 'Super Administrator',
+    TEACHER: 'Teacher',
+    CAMPUS_SUPERVISOR: 'Campus Supervisor'
   };
   return map[role] || role || 'User';
 };

@@ -26,7 +26,9 @@ def check_sla_breaches():
                     ComplaintStatus.UNDER_REVIEW,
                     ComplaintStatus.ESCALATED,
                 ]),
+                Complaint.sla_deadline_at.isnot(None),
                 Complaint.sla_deadline_at < now,
+                Complaint.complaint_type == "STUDENT",
                 Complaint.sla_status != SLAStatus.BREACHED,
             )
             .all()
@@ -54,8 +56,7 @@ def check_sla_breaches():
                 description="Automatically escalated due to SLA breach (no response within deadline).",
             )
 
-            new_assignment = complaint_repo.get_active_assignment(complaint.id)
-            if new_assignment:
+            for new_assignment in complaint_repo.get_active_assignments(complaint.id):
                 create_notification(
                     db,
                     user_id=new_assignment.assigned_user_id,

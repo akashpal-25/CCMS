@@ -192,18 +192,20 @@ class AdminRepository:
         )
         return self.save(profile)
 
-    def get_user_role(self, user_id, role_id, department_id):
+    def get_user_role(self, user_id, role_id, department_id, domain_id=None):
         from app.models.user import UserRole
         return self.db.query(UserRole).filter(
             UserRole.user_id == user_id,
             UserRole.role_id == role_id,
             UserRole.department_id == department_id,
+            UserRole.domain_id == domain_id,
         ).first()
 
-    def create_user_role(self, user_id, role_id, department_id, scope_type):
+    def create_user_role(self, user_id, role_id, department_id, scope_type, domain_id=None):
         from app.models.user import UserRole
         user_role = UserRole(
             user_id=user_id, role_id=role_id, department_id=department_id, scope_type=scope_type,
+            domain_id=domain_id,
         )
         return self.save(user_role)
 

@@ -8,22 +8,24 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Loader from '../../components/common/Loader';
 import { getRoleDisplayName } from '../../utils/formatters';
+import ClassSectionPicker from '../../components/admin/ClassSectionPicker';
+import ClassTeachersPanel from '../../components/admin/ClassTeachersPanel';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [sections, setSections] = useState([]);
+  const [domains, setDomains] = useState([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState(null);
   const [activeTab, setActiveTab] = useState('list');
   const [message, setMessage] = useState(null);
 
-  const [staffForm, setStaffForm] = useState({ email: '', full_name: '', designation: '', department_id: '', role_id: '', scope_type: 'DEPARTMENT' });
+  const EMPTY_STAFF = { email: '', full_name: '', designation: '', department_id: '', course_id: '', class_section_id: '', role_id: '', domain_id: '', scope_type: 'DEPARTMENT' };
+  const [staffForm, setStaffForm] = useState(EMPTY_STAFF);
   const [studentForm, setStudentForm] = useState({
     email: '', full_name: '', student_id: '', department_id: '', course_id: '',
-    class_section_id: '', semester: '', academic_session: '', admission_year: ''
+    class_section_id: '', academic_session: '', admission_year: ''
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -31,32 +33,17 @@ const UserManagement = () => {
   const [importResult, setImportResult] = useState(null);
 
   const loadAll = async () => {
-    const [u, r, d] = await Promise.all([adminService.getAllUsers(), adminService.getRoles(), adminService.getDepartments()]);
+    const [u, r, d, dom] = await Promise.all([adminService.getAllUsers(), adminService.getRoles(), adminService.getDepartments(), adminService.getDomains()]);
     setUsers(u);
     setRoles(r);
     setDepartments(d);
+    setDomains(dom.filter((x) => x.is_active));
     setLoading(false);
   };
 
   useEffect(() => {
     loadAll();
   }, []);
-
-  useEffect(() => {
-    if (studentForm.department_id) {
-      adminService.getCourses(studentForm.department_id).then(setCourses);
-    } else {
-      setCourses([]);
-    }
-  }, [studentForm.department_id]);
-
-  useEffect(() => {
-    if (studentForm.course_id) {
-      adminService.getClassSections(studentForm.course_id).then(setSections);
-    } else {
-      setSections([]);
-    }
-  }, [studentForm.course_id]);
 
   const handleToggle = async (userId) => {
     setTogglingId(userId);
@@ -75,9 +62,19 @@ const UserManagement = () => {
     setMessage(null);
     setSubmitting(true);
     try {
-      await adminService.createStaff(staffForm);
+      const payload = {
+        email: staffForm.email,
+        full_name: staffForm.full_name,
+        designation: staffForm.designation,
+        role_id: staffForm.role_id,
+        scope_type: staffForm.scope_type,
+        domain_id: showDomain && staffForm.domain_id ? staffForm.domain_id : null,
+        department_id: staffForm.scope_type === 'DEPARTMENT' && staffForm.department_id ? staffForm.department_id : null,
+        class_section_id: isClassTeacherRole ? staffForm.class_section_id : null,
+      };
+      await adminService.createStaff(payload);
       setMessage({ type: 'success', text: `Staff account created for ${staffForm.full_name}.` });
-      setStaffForm({ email: '', full_name: '', designation: '', department_id: '', role_id: '', scope_type: 'DEPARTMENT' });
+      setStaffForm(EMPTY_STAFF);
       await loadAll();
     } catch (err) {
       setMessage({ type: 'error', text: getErrorMessage(err, 'Could not create staff.') });
@@ -93,8 +90,6 @@ const UserManagement = () => {
     try {
       const payload = {
         ...studentForm,
-        class_section_id: studentForm.class_section_id || null,
-        semester: studentForm.semester ? Number(studentForm.semester) : null,
         admission_year: studentForm.admission_year ? Number(studentForm.admission_year) : null,
         academic_session: studentForm.academic_session || null,
       };
@@ -102,7 +97,7 @@ const UserManagement = () => {
       setMessage({ type: 'success', text: `Student account created for ${studentForm.full_name}.` });
       setStudentForm({
         email: '', full_name: '', student_id: '', department_id: '', course_id: '',
-        class_section_id: '', semester: '', academic_session: '', admission_year: ''
+        class_section_id: '', academic_session: '', admission_year: ''
       });
       await loadAll();
     } catch (err) {
@@ -130,6 +125,40 @@ const UserManagement = () => {
     }
   };
 
+  const selectedStaffRole = roles.find((r) => r.id === staffForm.role_id);
+  const isClassTeacherRole = selectedStaffRole?.name === 'CLASS_TEACHER';
+  const isSuperAdminRole = selectedStaffRole?.name === 'SUPER_ADMIN';
+  const isDepartmentOnlyRole = isClassTeacherRole || selectedStaffRole?.name === 'TEACHER';
+  const effectiveScope = isSuperAdminRole ? 'GLOBAL' : isDepartmentOnlyRole ? 'DEPARTMENT' : staffForm.scope_type;
+  // Domain sirf un roles ke liye jinhe kisi complaint domain ki authority banana hai (Warden, HOD, etc.)
+  const showDomain = !!selectedStaffRole && !isClassTeacherRole && !isSuperAdminRole && selectedStaffRole.name !== 'TEACHER';
+
+  const handleStaffRoleChange = (roleId) => {
+    const role = roles.find((r) => r.id === roleId);
+    let scope = staffForm.scope_type;
+    if (role?.name === 'SUPER_ADMIN') scope = 'GLOBAL';
+    if (role?.name === 'CLASS_TEACHER' || role?.name === 'TEACHER') scope = 'DEPARTMENT';
+    setStaffForm({
+      ...staffForm,
+      role_id: roleId,
+      domain_id: '',
+      scope_type: scope,
+      department_id: scope === 'GLOBAL' ? '' : staffForm.department_id,
+      course_id: '',
+      class_section_id: '',
+    });
+  };
+
+  const handleStaffScopeChange = (scope) => {
+    setStaffForm({
+      ...staffForm,
+      scope_type: scope,
+      department_id: scope === 'GLOBAL' ? '' : staffForm.department_id,
+      course_id: '',
+      class_section_id: '',
+    });
+  };
+
   const headers = ['Name', 'Email', 'Role(s)', 'Status', 'Action'];
   const tabStyle = (tab) => ({
     padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer',
@@ -154,6 +183,7 @@ const UserManagement = () => {
         <div style={tabStyle('staff')} onClick={() => setActiveTab('staff')}>+ Add Staff / HOD / Teacher</div>
         <div style={tabStyle('student')} onClick={() => setActiveTab('student')}>+ Add Student</div>
         <div style={tabStyle('bulk')} onClick={() => setActiveTab('bulk')}>+ Bulk Import (CSV)</div>
+        <div style={tabStyle('classTeachers')} onClick={() => setActiveTab('classTeachers')}>Class Teachers</div>
       </div>
 
       {message && (
@@ -207,28 +237,48 @@ const UserManagement = () => {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
               <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Role</label>
-              <select style={selectStyle} value={staffForm.role_id} onChange={(e) => setStaffForm({ ...staffForm, role_id: e.target.value })} required>
+              <select style={selectStyle} value={staffForm.role_id} onChange={(e) => handleStaffRoleChange(e.target.value)} required>
                 <option value="">Select role</option>
                 {roles.filter((r) => r.name !== 'STUDENT').map((r) => <option key={r.id} value={r.id}>{getRoleDisplayName(r.name)}</option>)}
               </select>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Scope</label>
-              <select style={selectStyle} value={staffForm.scope_type} onChange={(e) => setStaffForm({ ...staffForm, scope_type: e.target.value })}>
-                <option value="DEPARTMENT">Department</option>
-                <option value="GLOBAL">Global</option>
-              </select>
-            </div>
-
-            {staffForm.scope_type === 'DEPARTMENT' && (
+            {showDomain && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Department</label>
-                <select style={selectStyle} value={staffForm.department_id} onChange={(e) => setStaffForm({ ...staffForm, department_id: e.target.value })} required>
-                  <option value="">Select department</option>
-                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Domain</label>
+                <select style={selectStyle} value={staffForm.domain_id} onChange={(e) => setStaffForm({ ...staffForm, domain_id: e.target.value })}>
+                  <option value="">All domains</option>
+                  {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
+            )}
+
+            {!isSuperAdminRole && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Scope</label>
+                <select style={selectStyle} value={effectiveScope} onChange={(e) => handleStaffScopeChange(e.target.value)} disabled={isDepartmentOnlyRole}>
+                  <option value="DEPARTMENT">Department</option>
+                  {!isDepartmentOnlyRole && <option value="GLOBAL">Global</option>}
+                </select>
+              </div>
+            )}
+
+            {isClassTeacherRole ? (
+              <ClassSectionPicker
+                departments={departments}
+                value={{ department_id: staffForm.department_id, course_id: staffForm.course_id, class_section_id: staffForm.class_section_id }}
+                onChange={(v) => setStaffForm({ ...staffForm, ...v })}
+              />
+            ) : (
+              effectiveScope === 'DEPARTMENT' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Department</label>
+                  <select style={selectStyle} value={staffForm.department_id} onChange={(e) => setStaffForm({ ...staffForm, department_id: e.target.value })} required>
+                    <option value="">Select department</option>
+                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+              )
             )}
 
             <div style={{ alignSelf: 'end' }}>
@@ -244,35 +294,14 @@ const UserManagement = () => {
           <form onSubmit={handleCreateStudent} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
             <Input label="Email" type="email" value={studentForm.email} onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })} required />
             <Input label="Full Name" value={studentForm.full_name} onChange={(e) => setStudentForm({ ...studentForm, full_name: e.target.value })} required />
-            <Input label="Student / Roll ID" value={studentForm.student_id} onChange={(e) => setStudentForm({ ...studentForm, student_id: e.target.value })} required />
+            <Input label="Roll No." value={studentForm.student_id} onChange={(e) => setStudentForm({ ...studentForm, student_id: e.target.value })} required />
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Department</label>
-              <select style={selectStyle} value={studentForm.department_id} onChange={(e) => setStudentForm({ ...studentForm, department_id: e.target.value, course_id: '', class_section_id: '' })} required>
-                <option value="">Select department</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
+            <ClassSectionPicker
+              departments={departments}
+              value={{ department_id: studentForm.department_id, course_id: studentForm.course_id, class_section_id: studentForm.class_section_id }}
+              onChange={(v) => setStudentForm({ ...studentForm, ...v })}
+            />
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Course</label>
-              <select style={selectStyle} value={studentForm.course_id} onChange={(e) => setStudentForm({ ...studentForm, course_id: e.target.value, class_section_id: '' })} required>
-                <option value="">Select course</option>
-                {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>Section (optional)</label>
-              <select style={selectStyle} value={studentForm.class_section_id} onChange={(e) => setStudentForm({ ...studentForm, class_section_id: e.target.value })}>
-                <option value="">No specific section</option>
-                {sections.map((s) => (
-                  <option key={s.id} value={s.id}>Year/Sem {s.year_or_semester} - Section {s.section_name}</option>
-                ))}
-              </select>
-            </div>
-
-            <Input label="Semester (optional)" type="number" value={studentForm.semester} onChange={(e) => setStudentForm({ ...studentForm, semester: e.target.value })} />
             <Input label="Academic Session (optional)" value={studentForm.academic_session} onChange={(e) => setStudentForm({ ...studentForm, academic_session: e.target.value })} placeholder="e.g. 2024-2028" />
             <Input label="Admission Year (optional)" type="number" value={studentForm.admission_year} onChange={(e) => setStudentForm({ ...studentForm, admission_year: e.target.value })} placeholder="e.g. 2024" />
 
@@ -283,12 +312,14 @@ const UserManagement = () => {
         </Card>
       )}
 
+      {activeTab === 'classTeachers' && <ClassTeachersPanel users={users} />}
+
       {activeTab === 'bulk' && (
         <Card style={{ padding: '1.5rem' }}>
           <h4 style={{ fontSize: '0.9375rem', fontWeight: 600, marginBottom: '0.5rem' }}>Bulk Import Students (CSV)</h4>
           <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
-            Required columns: email, full_name, student_id, department_code, course_code.
-            Optional columns: mobile_number, year_or_semester, section_name, semester, academic_session, admission_year.
+            Required columns: email, full_name, student_id (roll no.), department_code, course_code, semester, section_name.
+            Optional columns: mobile_number, academic_session, admission_year.
           </p>
           <form onSubmit={handleBulkImport} style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <input type="file" accept=".csv" onChange={(e) => setCsvFile(e.target.files[0])} />

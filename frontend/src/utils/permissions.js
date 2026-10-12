@@ -10,3 +10,15 @@ export const getPrimaryRoleName = (user) => {
   const names = getUserRoleNames(user);
   return names.length > 0 ? names[0] : null;
 };
+
+// Teacher (TEACHER ya CLASS_TEACHER) apni complaint file kar sakta hai
+export const isTeacherUser = (user) => {
+  const names = getUserRoleNames(user);
+  return names.includes(ROLES.TEACHER) || names.includes(ROLES.CLASS_TEACHER);
+};
+
+// Sirf TEACHER role (koi aur staff role nahi) -> sirf teacher workspace dikhana hai
+export const isPureTeacherUser = (user) => {
+  const names = getUserRoleNames(user);
+  return names.length > 0 && names.every((n) => n === ROLES.TEACHER);
+};

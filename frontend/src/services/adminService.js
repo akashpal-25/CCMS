@@ -58,12 +58,14 @@ export const adminService = {
     return response.data;
   },
 
-  assignRole: async (userId, roleId, departmentId, scopeType) => {
+  assignRole: async (userId, roleId, departmentId, scopeType, classSectionId, domainId) => {
     const response = await api.post('/admin/roles/assign', {
       user_id: userId,
       role_id: roleId,
       department_id: departmentId || null,
       scope_type: scopeType,
+      class_section_id: classSectionId || null,
+      domain_id: domainId || null,
     });
     return response.data;
   },
@@ -159,6 +161,48 @@ export const adminService = {
 
   updateRoutingRule: async (id, payload) => {
     const response = await api.patch(`/admin/routing-rules/${id}`, payload);
+    return response.data;
+  },
+
+  // ---------- Class teachers ----------
+  getClassTeachers: async () => {
+    const response = await api.get('/admin/class-teachers');
+    return response.data;
+  },
+
+  setClassTeacher: async (sectionId, userId) => {
+    const response = await api.put(`/admin/class-teachers/${sectionId}`, { user_id: userId });
+    return response.data;
+  },
+
+  removeClassTeacher: async (sectionId) => {
+    const response = await api.delete(`/admin/class-teachers/${sectionId}`);
+    return response.data;
+  },
+
+  // ---------- Roles & permissions ----------
+  createRole: async (payload) => {
+    const response = await api.post('/admin/roles', payload);
+    return response.data;
+  },
+
+  updateRole: async (id, payload) => {
+    const response = await api.patch(`/admin/roles/${id}`, payload);
+    return response.data;
+  },
+
+  getPermissions: async () => {
+    const response = await api.get('/admin/permissions');
+    return response.data;
+  },
+
+  getRolePermissions: async (roleId) => {
+    const response = await api.get(`/admin/roles/${roleId}/permissions`);
+    return response.data;
+  },
+
+  setRolePermissions: async (roleId, permissionCodes) => {
+    const response = await api.put(`/admin/roles/${roleId}/permissions`, { permission_codes: permissionCodes });
     return response.data;
   },
 

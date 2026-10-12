@@ -1,14 +1,16 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, PlusCircle, Bell, User, Users, Shield, BarChart3, Settings, X } from 'lucide-react';
+import { LayoutDashboard, FileText, PlusCircle, Bell, User, Users, Shield, BarChart3, Settings, X, UserX } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
-import { isStudentUser, isSuperAdminUser } from '../../utils/permissions';
+import { isStudentUser, isSuperAdminUser, isTeacherUser, isPureTeacherUser } from '../../utils/permissions';
 const Sidebar = () => {
   const { user } = useAuthStore();
   const { isSidebarOpen, closeSidebar } = useUIStore();
   const isStudent = isStudentUser(user);
   const isSuperAdmin = isSuperAdminUser(user);
+  const isTeacher = isTeacherUser(user);
+  const isPureTeacher = isPureTeacherUser(user);
   const studentLinks = [
     { to: '/student', label: 'Dashboard', icon: LayoutDashboard, end: true },
     { to: '/student/complaints/new', label: 'Submit Complaint', icon: PlusCircle },
@@ -16,18 +18,26 @@ const Sidebar = () => {
     { to: '/student/notifications', label: 'Notifications', icon: Bell },
     { to: '/student/profile', label: 'My Profile', icon: User }
   ];
+  const teacherLinks = [
+    { to: '/admin/teacher/complaints', label: 'My Complaints', icon: FileText },
+    { to: '/admin/teacher/new', label: 'New Complaint', icon: PlusCircle },
+    { to: '/admin/teacher/report-student', label: 'Report a Student', icon: UserX },
+    { to: '/admin/notifications', label: 'Notifications', icon: Bell }
+  ];
   const adminLinks = [
     { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
     { to: '/admin/complaints', label: 'Complaint Queue', icon: FileText },
     { to: '/admin/escalated', label: 'Escalations', icon: Shield },
     { to: '/admin/reports', label: 'Reports & SLA', icon: BarChart3 },
+    ...(isTeacher ? teacherLinks : []),
     ...(isSuperAdmin ? [
       { to: '/admin/users', label: 'User Management', icon: Users },
       { to: '/admin/roles', label: 'Role Permissions', icon: Shield },
       { to: '/admin/settings', label: 'Settings', icon: Settings }
     ] : [])
   ];
-  const links = isStudent ? studentLinks : adminLinks;
+  // Sirf TEACHER role wale ko admin queue ki jagah teacher workspace dikhta hai
+  const links = isStudent ? studentLinks : (isPureTeacher ? teacherLinks : adminLinks);
   return (
     <>
       <div className="sidebar-overlay" onClick={closeSidebar}
@@ -43,7 +53,7 @@ const Sidebar = () => {
           marginBottom: '0.5rem' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)',
             textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {isStudent ? 'Student Workspace' : 'Administration'}
+            {isStudent ? 'Student Workspace' : (isPureTeacher ? 'Teacher Workspace' : 'Administration')}
           </span>
           <button className="hide-desktop" onClick={closeSidebar}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>

@@ -32,7 +32,7 @@ def get_my_student_profile(
         "department_name": department.name if department else "",
         "course_name": course.name if course else "",
         "class_section": section.section_name if section else None,
-        "semester": student.semester,
+        "semester": (section.year_or_semester if section else None) or student.semester,
         "academic_session": student.academic_session,
         "admission_year": student.admission_year,
         "status": student.status.value if hasattr(student.status, "value") else student.status,

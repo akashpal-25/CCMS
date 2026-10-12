@@ -44,6 +44,45 @@ class ComplaintRepository:
             RoutingRule.is_active == True,
         ).first()
 
+    def get_domain_by_id(self, domain_id: uuid.UUID) -> Optional[ComplaintDomain]:
+        return self.db.query(ComplaintDomain).filter(ComplaintDomain.id == domain_id).first()
+
+    def get_category_rules(self, domain_id: uuid.UUID, category_id: uuid.UUID) -> list[RoutingRule]:
+        """Sirf is category ke apne rules (domain default par fallback NAHI), level ke order mein."""
+        return (
+            self.db.query(RoutingRule)
+            .filter(
+                RoutingRule.domain_id == domain_id,
+                RoutingRule.category_id == category_id,
+                RoutingRule.is_active == True,
+            )
+            .order_by(RoutingRule.escalation_level.asc())
+            .all()
+        )
+
+    def get_student_by_roll_no(self, roll_no: str) -> Optional[StudentProfile]:
+        from sqlalchemy import func
+        return self.db.query(StudentProfile).filter(
+            func.upper(StudentProfile.student_id) == roll_no.strip().upper()
+        ).first()
+
+    def find_recent_duplicate(self, **filters):
+        """Double-click se bani same complaint pakadne ke liye (pichhle 30 second mein same title+description)."""
+        from datetime import datetime, timedelta, timezone
+        since = datetime.now(timezone.utc) - timedelta(seconds=30)
+        query = self.db.query(Complaint).filter(Complaint.created_at >= since)
+        for key, value in filters.items():
+            query = query.filter(getattr(Complaint, key) == value)
+        return query.order_by(Complaint.created_at.desc()).first()
+
+    def get_complaints_filed_by(self, user_id: uuid.UUID) -> list[Complaint]:
+        return (
+            self.db.query(Complaint)
+            .filter(Complaint.filed_by_user_id == user_id)
+            .order_by(Complaint.created_at.desc())
+            .all()
+        )
+
     def generate_complaint_number(self) -> str:
         from sqlalchemy import text
         from datetime import datetime, timezone
@@ -93,6 +132,25 @@ class ComplaintRepository:
             ComplaintAssignment.is_active == True,
         ).first()
 
+    def get_active_assignments(self, complaint_id):
+        from app.models.complaint import ComplaintAssignment
+        return self.db.query(ComplaintAssignment).filter(
+            ComplaintAssignment.complaint_id == complaint_id,
+            ComplaintAssignment.is_active == True,
+        ).all()
+
+    def get_active_assignment_for_user(self, complaint_id, user_id):
+        from app.models.complaint import ComplaintAssignment
+        return self.db.query(ComplaintAssignment).filter(
+            ComplaintAssignment.complaint_id == complaint_id,
+            ComplaintAssignment.assigned_user_id == user_id,
+            ComplaintAssignment.is_active == True,
+        ).first()
+
+    def end_all_assignments(self, complaint_id):
+        for assignment in self.get_active_assignments(complaint_id):
+            self.end_assignment(assignment)
+
     def end_assignment(self, assignment):
         from datetime import datetime, timezone
         assignment.is_active = False
@@ -120,7 +178,10 @@ class ComplaintRepository:
         if not complaint:
             return False
 
-        student = self.get_student_by_id(complaint.student_id)
+        if complaint.filed_by_user_id and complaint.filed_by_user_id == user_id:
+            return True
+
+        student = self.get_student_by_id(complaint.student_id) if complaint.student_id else None
         if student and student.user_id == user_id:
             return True
 
@@ -161,13 +222,35 @@ class ComplaintRepository:
         return (
             self.db.query(Complaint)
             .join(StudentProfile, StudentProfile.id == Complaint.student_id)
-            .filter(StudentProfile.department_id == department_id)
+            .filter(
+                StudentProfile.department_id == department_id,
+                Complaint.complaint_type == "STUDENT",
+            )
             .order_by(Complaint.created_at.desc())
             .all()
         )
 
+    def get_domain_complaints(self, domain_id, department_id=None):
+        """Ek domain ki saari student complaints (department_id diya ho to sirf us department ki)."""
+        from app.models.student import StudentProfile
+        query = (
+            self.db.query(Complaint)
+            .join(StudentProfile, StudentProfile.id == Complaint.student_id)
+            .filter(Complaint.domain_id == domain_id, Complaint.complaint_type == "STUDENT")
+        )
+        if department_id:
+            query = query.filter(StudentProfile.department_id == department_id)
+        return query.order_by(Complaint.created_at.desc()).all()
+
     def get_all_complaints(self):
-        return self.db.query(Complaint).order_by(Complaint.created_at.desc()).all()
+        # Teacher ki complaints (TEACHER / TEACHER_STUDENT_REPORT) global list mein nahi aati,
+        # wo sirf us teacher aur assigned HOD/Director ko dikhti hain.
+        return (
+            self.db.query(Complaint)
+            .filter(Complaint.complaint_type == "STUDENT")
+            .order_by(Complaint.created_at.desc())
+            .all()
+        )
 
     def get_events_for_complaint(self, complaint_id):
         from app.models.complaint import ComplaintEvent
@@ -187,6 +270,7 @@ class ComplaintRepository:
     def enrich_complaint(self, complaint) -> dict:
         from app.models.complaint import ComplaintDomain, ComplaintCategory, RoutingRule
         from app.models.student import StudentProfile
+        from app.models.staff_profile import StaffProfile
         from app.models.department import Department
         from app.models.user import User
         from app.models.role import Role
@@ -196,24 +280,49 @@ class ComplaintRepository:
         if complaint.category_id:
             category = self.db.query(ComplaintCategory).filter(ComplaintCategory.id == complaint.category_id).first()
 
-        student = self.db.query(StudentProfile).filter(StudentProfile.id == complaint.student_id).first()
+        # Student wali complaint mein student_id, teacher ke student-report mein subject_student_id
+        profile_id = complaint.student_id or complaint.subject_student_id
+        student = None
         student_user = None
         department = None
+        if profile_id:
+            student = self.db.query(StudentProfile).filter(StudentProfile.id == profile_id).first()
+        course_name = semester = section_name = None
         if student:
+            from app.models.department import Course, ClassSection
             student_user = self.db.query(User).filter(User.id == student.user_id).first()
             department = self.db.query(Department).filter(Department.id == student.department_id).first()
+            course = self.db.query(Course).filter(Course.id == student.course_id).first()
+            course_name = course.name if course else None
+            section = None
+            if student.class_section_id:
+                section = self.db.query(ClassSection).filter(ClassSection.id == student.class_section_id).first()
+            semester = (section.year_or_semester if section else None) or student.semester
+            section_name = section.section_name if section else None
 
-        assignment = self.get_active_assignment(complaint.id)
-        assigned_name = None
-        assigned_role = None
-        if assignment:
+        # Teacher ne file ki ho to filer ka naam; teacher complaint ka department = teacher ka department
+        filed_by_name = None
+        if complaint.filed_by_user_id:
+            filer = self.db.query(User).filter(User.id == complaint.filed_by_user_id).first()
+            filed_by_name = filer.full_name if filer else None
+            if department is None:
+                staff = self.db.query(StaffProfile).filter(StaffProfile.user_id == complaint.filed_by_user_id).first()
+                if staff and staff.department_id:
+                    department = self.db.query(Department).filter(Department.id == staff.department_id).first()
+
+        # Saare active assignees (ek se zyada ho sakte hain: jaise HOD + Director)
+        assigned_names = []
+        assigned_roles = []
+        for assignment in self.get_active_assignments(complaint.id):
             assigned_user = self.db.query(User).filter(User.id == assignment.assigned_user_id).first()
-            assigned_name = assigned_user.full_name if assigned_user else None
+            if assigned_user and assigned_user.full_name not in assigned_names:
+                assigned_names.append(assigned_user.full_name)
             if assignment.routing_rule_id:
                 rule = self.db.query(RoutingRule).filter(RoutingRule.id == assignment.routing_rule_id).first()
                 if rule:
                     role = self.db.query(Role).filter(Role.id == rule.target_role_id).first()
-                    assigned_role = role.name if role else None
+                    if role and role.name not in assigned_roles:
+                        assigned_roles.append(role.name)
 
         return {
             "id": complaint.id,
@@ -229,9 +338,15 @@ class ComplaintRepository:
             "category_name": category.name if category else None,
             "student_name": student_user.full_name if student_user else None,
             "student_college_id": student.student_id if student else None,
+            "student_course_name": course_name,
+            "student_semester": semester,
+            "student_section": section_name,
             "department_name": department.name if department else None,
-            "assigned_to_name": assigned_name,
-            "assigned_to_role": assigned_role,
+            "assigned_to_name": ", ".join(assigned_names) if assigned_names else None,
+            "assigned_to_role": ", ".join(assigned_roles) if assigned_roles else None,
+            "complaint_type": complaint.complaint_type or "STUDENT",
+            "filed_by_name": filed_by_name,
+            "whatsapp_status": complaint.whatsapp_status,
         }
 
     def enrich_complaints(self, complaints: list) -> list[dict]:
