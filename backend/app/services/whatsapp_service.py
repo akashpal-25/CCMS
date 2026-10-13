@@ -68,10 +68,10 @@ def send_whatsapp_message(phone: str, text: str) -> str:
 
 
 def _send_twilio(phone: str, text: str, sms: bool = False) -> str:
-    account_sid = settings.WHATSAPP_ACCOUNT_SID
-    key_sid = settings.WHATSAPP_API_KEY_SID
+    account_sid = getattr(settings, "WHATSAPP_ACCOUNT_SID", "")
+    key_sid = getattr(settings, "WHATSAPP_API_KEY_SID", "")
     secret = settings.WHATSAPP_API_KEY
-    sender = settings.WHATSAPP_SENDER
+    sender = getattr(settings, "WHATSAPP_SENDER", "")
     if not (account_sid and key_sid and secret and sender):
         logger.warning("Twilio settings incomplete - message skipped.")
         return NOT_CONFIGURED
@@ -104,10 +104,10 @@ def _send_textbee(phone: str, text: str) -> str:
     """
     TextBee SMS gateway (Android phone se SMS jata hai).
     WHATSAPP_API_KEY  = TextBee ki API key
-    WHATSAPP_SENDER   = (optional) TextBee Device ID. Khali ho to seedha /gateway/send-sms use hota hai.
+    TEXTBEE_DEVICE_ID = (optional) TextBee Device ID. Khali ho to seedha /gateway/send-sms use hota hai.
     """
     api_key = settings.WHATSAPP_API_KEY
-    device_id = (settings.WHATSAPP_SENDER or "").strip()
+    device_id = (getattr(settings, "TEXTBEE_DEVICE_ID", "") or "").strip()
     if not api_key:
         logger.warning("TextBee API key missing - message skipped.")
         return NOT_CONFIGURED
