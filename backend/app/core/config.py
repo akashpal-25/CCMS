@@ -25,9 +25,6 @@ class Settings(BaseSettings):
     # WhatsApp (OPTIONAL) - khali chhodoge to complaint normal chalegi, bas parent ko message nahi jayega
     WHATSAPP_PROVIDER: str = ""      # baad mein provider ka naam yahan aayega (jaise "twilio" / "meta")
     WHATSAPP_API_KEY: str = ""
-    WHATSAPP_SENDER: str = ""
-    WHATSAPP_ACCOUNT_SID: str = ""
-    WHATSAPP_API_KEY_SID: str  = ""
 
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE_MB: int = 5
