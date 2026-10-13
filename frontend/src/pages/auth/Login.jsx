@@ -85,7 +85,7 @@ const Login = () => {
         <Card style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <GraduationCap size={28} style={{ color: 'var(--color-primary)' }} />
+              <img src="/icons/axis-logo.png" alt="Axis" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
               <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-primary)' }}>CCMS Portal</h2>
             </div>
             <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>

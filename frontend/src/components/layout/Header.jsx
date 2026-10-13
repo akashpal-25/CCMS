@@ -53,20 +53,7 @@ const Header = () => {
         >
           <Menu size={22} />
         </button>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: 'var(--radius-md)',
-          backgroundColor: 'var(--color-primary)',
-          color: '#fff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontWeight: 700,
-          fontSize: '0.875rem'
-        }}>
-          C
-        </div>
+        <img src="/icons/axis-logo.png" alt="Axis" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
         <div>
           <h1 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-primary)', margin: 0, whiteSpace: 'nowrap' }}>
             CCMS Portal
