@@ -119,7 +119,13 @@ def _send_textbee(phone: str, text: str) -> str:
     req = urllib.request.Request(
         url,
         data=payload,
-        headers={"x-api-key": api_key, "Content-Type": "application/json"},
+        headers={
+            "x-api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            # Cloudflare (error 1010) default 'Python-urllib' User-Agent ko block kar deta hai
+            "User-Agent": "Mozilla/5.0 (compatible; CCMS-Backend/1.0)",
+        },
         method="POST",
     )
     try:
